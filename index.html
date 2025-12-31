@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f2432'/><text x='50' y='70' font-size='60' font-weight='bold' text-anchor='middle' fill='%235cc8ff' font-family='system-ui, sans-serif'>P</text></svg>" />
+  <title>push</title>
+  <style>
+    :root { --bg:#0b0f14; --panel:#151a21; --text:#e8eef6; --muted:#9fb0c3; --accent:#5cc8ff; --accent2:#7cf29f; --danger:#ff6b6b; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b0f14,#0e1319);color:var(--text);min-height:100vh;display:grid;place-items:center;padding:24px}
+    .app{width:100%;max-width:820px;background:var(--panel);border:1px solid #202833;border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+    h1{margin:0;font-size:clamp(18px,4vw,22px)}
+    .sub{color:var(--muted);font-size:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .panel{background:#0f141b;border:1px solid #212a36;border-radius:12px;padding:12px}
+    button{appearance:none;border:1px solid #2a3544;background:#121821;color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600}
+    button:hover{background:#17202b}
+    button.primary{border-color:#214a63;background:#0f2432}
+    button.accent{border-color:#2b6d84;background:#0e2732;color:var(--accent)}
+    button.good{border-color:#265a3a;background:#0e2618;color:var(--accent2)}
+    button.warn{border-color:#6b2a2a;background:#241012;color:var(--danger)}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;border:1px solid #243140;color:var(--muted);font-size:12px}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}
+    @media(max-width:820px){.grid{grid-template-columns:1fr}}
+    .exercise h2{margin:0;font-size:20px}
+    .stack{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .timer{display:flex;align-items:center;gap:10px;font-variant-numeric:tabular-nums;font-size:28px}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#0c1117;border:1px solid #263246;padding:2px 6px;border-radius:6px;font-size:12px;color:var(--muted)}
+    textarea{background:#0c1117;border:1px solid #253244;color:var(--text);border-radius:10px;padding:10px;width:100%;min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    ol{margin:0 0 8px 20px;line-height:1.6}
+    .footer{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:12px}
+    .progress{height:8px;background:#121821;border:1px solid #223042;border-radius:999px;overflow:hidden;margin:8px 0 2px}
+    .bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .25s ease}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>push</h1>
+        <div class="sub">Click through your circuit • Shortcuts: <span class="kbd">Space</span> timer • <span class="kbd">Enter</span> complete • <span class="kbd">R</span> reset</div>
+      </div>
+      <div class="row">
+        <label class="badge">Rounds
+          <select id="rounds" style="margin-left:6px;background:#0c1117;color:var(--text);border:1px solid #253244;border-radius:8px;padding:6px">
+            <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option>
+          </select>
+        </label>
+        <label class="badge">Mode
+          <select id="mode" style="margin-left:6px;background:#0c1117;color:var(--text);border:1px solid #253244;border-radius:8px;padding:6px">
+            <option value="circuit" selected>Circuit</option>
+            <option value="sequential">Sequential</option>
+          </select>
+        </label>
+        <button class="ghost" id="resetBtn" title="Reset (R)">Reset</button>
+        <button class="accent" id="openPlan">Paste Plan</button>
+        <button class="good" id="saveWorkout">Save Workout</button>
+        <button class="primary" id="loadWorkout">Load Saved</button>
+        <button class="ghost" id="copyPlan">Copy Current Plan</button>
+      </div>
+    </header>
+
+    <div class="progress"><div class="bar" id="bar"></div></div>
+    <div class="sub" id="meta">Round 1 of 3 • Exercise 1 of 5</div>
+
+    <div class="grid">
+      <div class="panel exercise" id="exercisePanel">
+        <h2 id="exTitle">—</h2>
+        <div class="stack">
+          <span class="badge" id="badgeType">—</span>
+          <span class="badge" id="badgeSide" style="display:none">Side: Right</span>
+        </div>
+        <p id="exDesc" class="sub" style="margin:4px 0 8px">—</p>
+
+        <div id="repBox" class="stack" style="display:none;align-items:center">
+          <span class="badge">Target reps: <strong id="repTarget" style="margin-left:6px;color:#fff">10</strong></span>
+          <button class="good" id="markRepsBtn" title="Enter">Mark Completed</button>
+        </div>
+
+        <div id="timeBox" style="display:none">
+          <div class="timer"><span id="time">00:30</span><small id="sideHint" class="sub"></small></div>
+          <div class="row">
+            <button class="accent" id="startBtn" title="Space">Start</button>
+            <button id="pauseBtn">Pause</button>
+            <button id="resetTimerBtn">Reset</button>
+            <button class="good" id="doneSideBtn">Done This Side</button>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="prevBtn" title="←">◀ Prev</button>
+          <button class="primary" id="nextBtn" title="→">Next ▶</button>
+          <button class="warn" id="skipBtn">Skip</button>
+        </div>
+      </div>
+
+      <aside class="panel">
+        <div class="sub" style="margin-bottom:6px">Today’s flow</div>
+        <ol id="list"></ol>
+        <div class="footer">
+          <div id="stamp"></div>
+          <div id="doneCount">0 / 0</div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel" id="planPanel" style="display:none;margin-top:10px">
+      <div class="sub" style="margin-bottom:6px">Paste plan JSON (rounds + exercises). Click <b>Load Plan</b>.</div>
+      <textarea id="planInput" placeholder='{"rounds":3,"exercises":[{"name":"Incline Cable Chest Press","type":"reps","reps":10},{"name":"One‑Arm Cable Row","type":"reps","reps":10,"perSide":true},{"name":"Goblet Squat","type":"reps","reps":10},{"name":"Cable Romanian Deadlift","type":"reps","reps":10},{"name":"Pallof Press Hold","type":"time","seconds":30,"perSide":true}]}'></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="good" id="loadPlan">Load Plan</button>
+        <button id="closePlan">Close</button>
+      </div>
+    </section>
+
+    <section class="panel" id="savedPanel" style="display:none;margin-top:10px">
+      <div class="sub" style="margin-bottom:6px">Saved Workouts</div>
+      <div id="savedList" style="margin:8px 0"></div>
+      <button id="closeSaved">Close</button>
+    </section>
+  </div>
+
+  <script>
+    // ===== Default Plan =====
+    let plan = {
+      rounds: 3,
+      exercises: [
+        { name:'One‑Arm Cable Row', type:'reps', reps:10, perSide:true,  desc:'Keep torso square; pull elbow to hip.' },
+        { name:'Incline Cable Chest Press', type:'reps', reps:10, perSide:false, desc:'Press up and in with control.' },
+        { name:'Goblet Squat', type:'reps', reps:10, perSide:false, desc:'Sit between heels; torso tall.' },
+        { name:'Cable Romanian Deadlift', type:'reps', reps:10, perSide:false, desc:'Hips back, neutral spine; squeeze up.' },
+        { name:'Pallof Press Hold', type:'time', seconds:30, perSide:true, desc:'Stand side‑on; resist rotation.' },
+      ]
+    };
+
+    // ===== State =====
+    let rounds = plan.rounds || 3;
+    let mode = 'circuit'; // 'circuit' or 'sequential'
+    let currentRound = 1, index = 0, side = 'Right';
+    let timer = null, remaining = 30, isRunning = false;
+
+    // ===== Elements =====
+    const roundsSel = document.getElementById('rounds');
+    const modeSel = document.getElementById('mode');
+    const resetBtn = document.getElementById('resetBtn');
+    const bar = document.getElementById('bar');
+    const meta = document.getElementById('meta');
+    const doneCount = document.getElementById('doneCount');
+    const list = document.getElementById('list');
+    const exTitle = document.getElementById('exTitle');
+    const exDesc = document.getElementById('exDesc');
+    const badgeType = document.getElementById('badgeType');
+    const badgeSide = document.getElementById('badgeSide');
+    const repBox = document.getElementById('repBox');
+    const repTarget = document.getElementById('repTarget');
+    const timeBox = document.getElementById('timeBox');
+    const timeEl = document.getElementById('time');
+    const sideHint = document.getElementById('sideHint');
+    const markRepsBtn = document.getElementById('markRepsBtn');
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resetTimerBtn = document.getElementById('resetTimerBtn');
+    const doneSideBtn = document.getElementById('doneSideBtn');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const skipBtn = document.getElementById('skipBtn');
+    const openPlanBtn = document.getElementById('openPlan');
+    const copyPlanBtn = document.getElementById('copyPlan');
+    const saveWorkoutBtn = document.getElementById('saveWorkout');
+    const loadWorkoutBtn = document.getElementById('loadWorkout');
+    const planPanel = document.getElementById('planPanel');
+    const planInput = document.getElementById('planInput');
+    const loadPlanBtn = document.getElementById('loadPlan');
+    const closePlanBtn = document.getElementById('closePlan');
+    const savedPanel = document.getElementById('savedPanel');
+    const savedList = document.getElementById('savedList');
+    const closeSavedBtn = document.getElementById('closeSaved');
+
+    // ===== Helpers =====
+    function fmtTime(s){ const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
+    function stepsPerRound(){ return plan.exercises.reduce((n,ex)=>n+(ex.perSide?2:1),0); }
+    function totalSteps(){ return stepsPerRound()*rounds; }
+    function currentStep(){
+      let s=(currentRound-1)*stepsPerRound();
+      for(let i=0;i<index;i++) s+=(plan.exercises[i].perSide?2:1);
+      if(plan.exercises[index]?.perSide && side==='Left') s+=1;
+      return s;
+    }
+    function renderList(){
+      list.innerHTML='';
+      plan.exercises.forEach(ex=>{
+        const detail = ex.type==='reps' ? `${ex.reps}${ex.perSide?' / side':''}` : `${ex.seconds}s${ex.perSide?' / side':''}`;
+        const li=document.createElement('li'); li.textContent=`${ex.name} – ${detail}`; list.appendChild(li);
+      });
+      document.getElementById('stamp').textContent = new Date().toLocaleString();
+    }
+
+    // ===== Render =====
+    function render(){
+      const stepNow=currentStep(), total=totalSteps();
+      bar.style.width = Math.min(100,(stepNow/Math.max(total,1))*100) + '%';
+      doneCount.textContent = `${stepNow} / ${total}`;
+      meta.textContent = `Round ${currentRound} of ${rounds} • Exercise ${index+1} of ${plan.exercises.length}`;
+
+      const ex = plan.exercises[index];
+      if(!ex){ exTitle.textContent='No exercises'; badgeType.textContent='—'; exDesc.textContent=''; repBox.style.display='none'; timeBox.style.display='none'; return; }
+      exTitle.textContent = ex.name;
+      exDesc && (exDesc.textContent = ex.desc||'');
+      badgeType.textContent = ex.type==='reps' ? `Reps: ${ex.reps}${ex.perSide?' per side':''}` : `Time: ${ex.seconds}s${ex.perSide?' per side':''}`;
+      repTarget.textContent = ex.reps||0;
+      if(ex.perSide){ badgeSide.style.display='inline-flex'; badgeSide.textContent=`Side: ${side}`; sideHint.textContent = '• Do '+side.toLowerCase()+' side'; }
+      else { badgeSide.style.display='none'; sideHint.textContent=''; }
+
+      repBox.style.display = ex.type==='reps' ? 'flex' : 'none';
+      timeBox.style.display = ex.type==='time' ? 'block' : 'none';
+      if(ex.type==='time'){ remaining = ex.seconds||30; timeEl.textContent = fmtTime(remaining); stopTimer(); }
+      roundsSel.value = String(rounds);
+    }
+
+    // ===== Navigation =====
+    function advance(){
+      const ex = plan.exercises[index];
+      if(ex?.perSide && side==='Right'){ side='Left'; render(); return; }
+      side='Right';
+
+      if(mode === 'circuit'){
+        // Circuit mode: cycle through all exercises, then increment round
+        if(index < plan.exercises.length-1){ index++; }
+        else if(currentRound < rounds){ currentRound++; index=0; }
+        else { exTitle.textContent='All Done ✔'; exDesc.textContent='Great work.'; repBox.style.display='none'; timeBox.style.display='none'; return; }
+      } else {
+        // Sequential mode: do all rounds of one exercise, then move to next
+        if(currentRound < rounds){ currentRound++; }
+        else if(index < plan.exercises.length-1){ index++; currentRound=1; }
+        else { exTitle.textContent='All Done ✔'; exDesc.textContent='Great work.'; repBox.style.display='none'; timeBox.style.display='none'; return; }
+      }
+      render();
+    }
+    function back(){
+      const ex = plan.exercises[index];
+      if(ex?.perSide && side==='Left'){ side='Right'; render(); return; }
+
+      if(mode === 'circuit'){
+        // Circuit mode: go back through exercises, then decrement round
+        if(index>0){ index--; side = plan.exercises[index].perSide ? 'Left' : 'Right'; }
+        else if(currentRound>1){ currentRound--; index = plan.exercises.length-1; side = plan.exercises[index].perSide ? 'Left' : 'Right'; }
+      } else {
+        // Sequential mode: go back through rounds, then previous exercise
+        if(currentRound>1){ currentRound--; }
+        else if(index>0){ index--; currentRound=rounds; side = plan.exercises[index].perSide ? 'Left' : 'Right'; }
+      }
+      render();
+    }
+
+    // ===== Timer =====
+    function startTimer(){ if(isRunning) return; isRunning=true; timer=setInterval(()=>{ remaining--; timeEl.textContent=fmtTime(remaining); if(remaining<=0){ stopTimer(); timeEl.textContent='00:00'; advance(); } },1000); }
+    function stopTimer(){ if(timer){ clearInterval(timer); timer=null; } isRunning=false; }
+    function resetTimer(){ stopTimer(); remaining = plan.exercises[index]?.seconds||30; timeEl.textContent=fmtTime(remaining); }
+
+    // ===== Plan Loader =====
+    openPlanBtn.addEventListener('click', ()=>{
+      const isClosed = getComputedStyle(planPanel).display==='none';
+      if(isClosed){ planPanel.style.display='block'; openPlanBtn.textContent='Close'; planInput.value = ''; planPanel.scrollIntoView({behavior:'smooth'}); }
+      else { planPanel.style.display='none'; openPlanBtn.textContent='Paste Plan'; }
+    });
+    closePlanBtn.addEventListener('click', ()=>{ planPanel.style.display='none'; openPlanBtn.textContent='Paste Plan'; });
+    loadPlanBtn.addEventListener('click', ()=>{
+      try {
+        const newPlan = JSON.parse(planInput.value);
+        if(!newPlan || !Array.isArray(newPlan.exercises)) throw new Error('Missing exercises');
+        plan = newPlan; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right';
+        renderList(); render();
+        planPanel.style.display='none'; openPlanBtn.textContent='Paste Plan';
+      } catch(e){ alert('Invalid plan JSON'); }
+    });
+    copyPlanBtn.addEventListener('click', ()=>{ navigator.clipboard.writeText(JSON.stringify(plan,null,2)); alert('Plan copied'); });
+
+    // ===== Save/Load Workouts =====
+    const USE_SERVER = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const API_BASE = 'http://localhost:3000/api';
+
+    // LocalStorage helpers
+    function getLocalWorkouts(){
+      const stored = localStorage.getItem('workouts');
+      return stored ? JSON.parse(stored) : {};
+    }
+    function saveLocalWorkout(name, workout){
+      const workouts = getLocalWorkouts();
+      workouts[name] = workout;
+      localStorage.setItem('workouts', JSON.stringify(workouts));
+    }
+    function deleteLocalWorkout(name){
+      const workouts = getLocalWorkouts();
+      delete workouts[name];
+      localStorage.setItem('workouts', JSON.stringify(workouts));
+    }
+
+    saveWorkoutBtn.addEventListener('click', async ()=>{
+      const name = prompt('Enter a name for this workout:');
+      if(!name) return;
+
+      if(USE_SERVER){
+        try {
+          const response = await fetch(`${API_BASE}/workouts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, plan })
+          });
+          const result = await response.json();
+          if(!response.ok){ alert(`Error: ${result.error}`); }
+        } catch(e){ alert('Failed to save workout. Is the server running?'); }
+      } else {
+        saveLocalWorkout(name, plan);
+      }
+    });
+
+    loadWorkoutBtn.addEventListener('click', async ()=>{
+      if(USE_SERVER){
+        try {
+          const response = await fetch(`${API_BASE}/workouts`);
+          const result = await response.json();
+          if(!response.ok || !result.workouts){ alert('Failed to load workouts'); return; }
+
+          savedList.innerHTML = '';
+          if(result.workouts.length === 0){
+            savedList.innerHTML = '<div class="sub">No saved workouts found.</div>';
+          } else {
+            result.workouts.forEach(name=>{
+              const div = document.createElement('div');
+              div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center';
+              div.innerHTML = `
+                <button class="primary" style="flex:1" onclick="loadSavedWorkout('${name}')">${name}</button>
+                <button class="warn" onclick="deleteSavedWorkout('${name}')">Delete</button>
+              `;
+              savedList.appendChild(div);
+            });
+          }
+
+          savedPanel.style.display = 'block';
+          savedPanel.scrollIntoView({behavior:'smooth'});
+        } catch(e){ alert('Failed to load workouts. Is the server running?'); }
+      } else {
+        const workouts = getLocalWorkouts();
+        const names = Object.keys(workouts);
+
+        savedList.innerHTML = '';
+        if(names.length === 0){
+          savedList.innerHTML = '<div class="sub">No saved workouts found.</div>';
+        } else {
+          names.forEach(name=>{
+            const div = document.createElement('div');
+            div.style.cssText = 'display:flex;gap:8px;margin:6px 0;align-items:center';
+            div.innerHTML = `
+              <button class="primary" style="flex:1" onclick="loadSavedWorkout('${name}')">${name}</button>
+              <button class="warn" onclick="deleteSavedWorkout('${name}')">Delete</button>
+            `;
+            savedList.appendChild(div);
+          });
+        }
+
+        savedPanel.style.display = 'block';
+        savedPanel.scrollIntoView({behavior:'smooth'});
+      }
+    });
+
+    closeSavedBtn.addEventListener('click', ()=>{ savedPanel.style.display='none'; });
+
+    window.loadSavedWorkout = async (name)=>{
+      if(USE_SERVER){
+        try {
+          const response = await fetch(`${API_BASE}/workouts/${name}`);
+          const newPlan = await response.json();
+          if(!response.ok){ alert('Failed to load workout'); return; }
+
+          plan = newPlan; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right';
+          renderList(); render();
+          savedPanel.style.display='none';
+        } catch(e){ alert('Failed to load workout'); }
+      } else {
+        const workouts = getLocalWorkouts();
+        if(workouts[name]){
+          plan = workouts[name]; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right';
+          renderList(); render();
+          savedPanel.style.display='none';
+        }
+      }
+    };
+
+    window.deleteSavedWorkout = async (name)=>{
+      if(!confirm(`Delete workout "${name}"?`)) return;
+
+      if(USE_SERVER){
+        try {
+          const response = await fetch(`${API_BASE}/workouts/${name}`, { method: 'DELETE' });
+          if(response.ok){
+            loadWorkoutBtn.click(); // Refresh the list
+          } else { alert('Failed to delete workout'); }
+        } catch(e){ alert('Failed to delete workout'); }
+      } else {
+        deleteLocalWorkout(name);
+        loadWorkoutBtn.click(); // Refresh the list
+      }
+    };
+
+    // ===== Controls =====
+    roundsSel.addEventListener('change', e=>{ rounds = Number(e.target.value)||3; currentRound=1; index=0; side='Right'; render(); });
+    modeSel.addEventListener('change', e=>{ mode = e.target.value; currentRound=1; index=0; side='Right'; render(); });
+    resetBtn.addEventListener('click', ()=>{ currentRound=1; index=0; side='Right'; render(); });
+    markRepsBtn.addEventListener('click', advance);
+    doneSideBtn.addEventListener('click', advance);
+    startBtn.addEventListener('click', startTimer);
+    pauseBtn.addEventListener('click', stopTimer);
+    resetTimerBtn.addEventListener('click', resetTimer);
+    nextBtn.addEventListener('click', advance);
+    prevBtn.addEventListener('click', back);
+    skipBtn.addEventListener('click', advance);
+
+    // ===== Keyboard =====
+    document.addEventListener('keydown', e=>{
+      if(e.key===' '){ e.preventDefault(); const ex=plan.exercises[index]; if(ex?.type==='time'){ isRunning?stopTimer():startTimer(); } }
+      else if(e.key==='Enter'){ const ex=plan.exercises[index]; if(ex?.type==='reps') advance(); }
+      else if(e.key==='ArrowRight'){ advance(); }
+      else if(e.key==='ArrowLeft'){ back(); }
+      else if(e.key.toLowerCase()==='r'){ currentRound=1; index=0; side='Right'; render(); }
+      else if(e.key==='Escape'){ planPanel.style.display='none'; openPlanBtn.textContent='Paste Plan'; }
+    });
+
+    // ===== Init =====
+    renderList();
+    render();
+  </script>
+</body>
+</html>
