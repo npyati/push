@@ -54,6 +54,7 @@
           <select id="mode" style="margin-left:6px;background:#0c1117;color:var(--text);border:1px solid #253244;border-radius:8px;padding:6px">
             <option value="circuit" selected>Circuit</option>
             <option value="sequential">Sequential</option>
+            <option value="shuffle">Shuffle</option>
           </select>
         </label>
         <button class="ghost" id="resetBtn" title="Reset (R)">Reset</button>
@@ -139,9 +140,10 @@
 
     // ===== State =====
     let rounds = plan.rounds || 3;
-    let mode = 'circuit'; // 'circuit' or 'sequential'
+    let mode = 'circuit'; // 'circuit', 'sequential', or 'shuffle'
     let currentRound = 1, index = 0, side = 'Right';
     let timer = null, remaining = 30, isRunning = false;
+    let shuffleOrders = {}; // Map of round number to shuffled exercise indices
 
     // ===== Elements =====
     const roundsSel = document.getElementById('rounds');
@@ -182,6 +184,20 @@
 
     // ===== Helpers =====
     function fmtTime(s){ const m=String(Math.floor(s/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
+    function getShuffleOrder(round){
+      if(shuffleOrders[round]) return shuffleOrders[round];
+      const indices = plan.exercises.map((_, i) => i);
+      for(let i = indices.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      shuffleOrders[round] = indices;
+      return indices;
+    }
+    function getCurrentExerciseIndex(){
+      if(mode !== 'shuffle') return index;
+      return getShuffleOrder(currentRound)[index];
+    }
     function stepsPerRound(){ return plan.exercises.reduce((n,ex)=>n+(ex.perSide?2:1),0); }
     function totalSteps(){ return stepsPerRound()*rounds; }
     function currentStep(){
@@ -192,7 +208,14 @@
     }
     function renderList(){
       list.innerHTML='';
-      plan.exercises.forEach(ex=>{
+      let exercises = plan.exercises;
+
+      if(mode === 'shuffle' && currentRound > 0){
+        const order = getShuffleOrder(currentRound);
+        exercises = order.map(i => plan.exercises[i]);
+      }
+
+      exercises.forEach(ex=>{
         const detail = ex.type==='reps' ? `${ex.reps}${ex.perSide?' / side':''}` : `${ex.seconds}s${ex.perSide?' / side':''}`;
         const li=document.createElement('li'); li.textContent=`${ex.name} – ${detail}`; list.appendChild(li);
       });
@@ -206,7 +229,7 @@
       doneCount.textContent = `${stepNow} / ${total}`;
       meta.textContent = `Round ${currentRound} of ${rounds} • Exercise ${index+1} of ${plan.exercises.length}`;
 
-      const ex = plan.exercises[index];
+      const ex = plan.exercises[getCurrentExerciseIndex()];
       if(!ex){ exTitle.textContent='No exercises'; badgeType.textContent='—'; exDesc.textContent=''; repBox.style.display='none'; timeBox.style.display='none'; return; }
       exTitle.textContent = ex.name;
       exDesc && (exDesc.textContent = ex.desc||'');
@@ -223,7 +246,7 @@
 
     // ===== Navigation =====
     function advance(){
-      const ex = plan.exercises[index];
+      const ex = plan.exercises[getCurrentExerciseIndex()];
       if(ex?.perSide && side==='Right'){ side='Left'; render(); return; }
       side='Right';
 
@@ -232,26 +255,35 @@
         if(index < plan.exercises.length-1){ index++; }
         else if(currentRound < rounds){ currentRound++; index=0; }
         else { exTitle.textContent='All Done ✔'; exDesc.textContent='Great work.'; repBox.style.display='none'; timeBox.style.display='none'; return; }
-      } else {
+      } else if(mode === 'sequential'){
         // Sequential mode: do all rounds of one exercise, then move to next
         if(currentRound < rounds){ currentRound++; }
         else if(index < plan.exercises.length-1){ index++; currentRound=1; }
+        else { exTitle.textContent='All Done ✔'; exDesc.textContent='Great work.'; repBox.style.display='none'; timeBox.style.display='none'; return; }
+      } else if(mode === 'shuffle'){
+        // Shuffle mode: cycle through shuffled exercises, then increment round
+        if(index < plan.exercises.length-1){ index++; }
+        else if(currentRound < rounds){ currentRound++; index=0; renderList(); }
         else { exTitle.textContent='All Done ✔'; exDesc.textContent='Great work.'; repBox.style.display='none'; timeBox.style.display='none'; return; }
       }
       render();
     }
     function back(){
-      const ex = plan.exercises[index];
+      const ex = plan.exercises[getCurrentExerciseIndex()];
       if(ex?.perSide && side==='Left'){ side='Right'; render(); return; }
 
       if(mode === 'circuit'){
         // Circuit mode: go back through exercises, then decrement round
         if(index>0){ index--; side = plan.exercises[index].perSide ? 'Left' : 'Right'; }
         else if(currentRound>1){ currentRound--; index = plan.exercises.length-1; side = plan.exercises[index].perSide ? 'Left' : 'Right'; }
-      } else {
+      } else if(mode === 'sequential'){
         // Sequential mode: go back through rounds, then previous exercise
         if(currentRound>1){ currentRound--; }
         else if(index>0){ index--; currentRound=rounds; side = plan.exercises[index].perSide ? 'Left' : 'Right'; }
+      } else if(mode === 'shuffle'){
+        // Shuffle mode: go back through shuffled exercises, then decrement round
+        if(index>0){ index--; side = plan.exercises[getCurrentExerciseIndex()].perSide ? 'Left' : 'Right'; }
+        else if(currentRound>1){ currentRound--; index = plan.exercises.length-1; side = plan.exercises[getCurrentExerciseIndex()].perSide ? 'Left' : 'Right'; renderList(); }
       }
       render();
     }
@@ -272,7 +304,7 @@
       try {
         const newPlan = JSON.parse(planInput.value);
         if(!newPlan || !Array.isArray(newPlan.exercises)) throw new Error('Missing exercises');
-        plan = newPlan; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right';
+        plan = newPlan; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right'; shuffleOrders={};
         renderList(); render();
         planPanel.style.display='none'; openPlanBtn.textContent='Paste Plan';
       } catch(e){ alert('Invalid plan JSON'); }
@@ -376,14 +408,14 @@
           const newPlan = await response.json();
           if(!response.ok){ alert('Failed to load workout'); return; }
 
-          plan = newPlan; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right';
+          plan = newPlan; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right'; shuffleOrders={};
           renderList(); render();
           savedPanel.style.display='none';
         } catch(e){ alert('Failed to load workout'); }
       } else {
         const workouts = getLocalWorkouts();
         if(workouts[name]){
-          plan = workouts[name]; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right';
+          plan = workouts[name]; rounds = Number(plan.rounds)||3; currentRound=1; index=0; side='Right'; shuffleOrders={};
           renderList(); render();
           savedPanel.style.display='none';
         }
@@ -407,9 +439,9 @@
     };
 
     // ===== Controls =====
-    roundsSel.addEventListener('change', e=>{ rounds = Number(e.target.value)||3; currentRound=1; index=0; side='Right'; render(); });
-    modeSel.addEventListener('change', e=>{ mode = e.target.value; currentRound=1; index=0; side='Right'; render(); });
-    resetBtn.addEventListener('click', ()=>{ currentRound=1; index=0; side='Right'; render(); });
+    roundsSel.addEventListener('change', e=>{ rounds = Number(e.target.value)||3; currentRound=1; index=0; side='Right'; shuffleOrders={}; render(); });
+    modeSel.addEventListener('change', e=>{ mode = e.target.value; currentRound=1; index=0; side='Right'; shuffleOrders={}; render(); });
+    resetBtn.addEventListener('click', ()=>{ currentRound=1; index=0; side='Right'; shuffleOrders={}; render(); });
     markRepsBtn.addEventListener('click', advance);
     doneSideBtn.addEventListener('click', advance);
     startBtn.addEventListener('click', startTimer);
@@ -421,11 +453,11 @@
 
     // ===== Keyboard =====
     document.addEventListener('keydown', e=>{
-      if(e.key===' '){ e.preventDefault(); const ex=plan.exercises[index]; if(ex?.type==='time'){ isRunning?stopTimer():startTimer(); } }
-      else if(e.key==='Enter'){ const ex=plan.exercises[index]; if(ex?.type==='reps') advance(); }
+      if(e.key===' '){ e.preventDefault(); const ex=plan.exercises[getCurrentExerciseIndex()]; if(ex?.type==='time'){ isRunning?stopTimer():startTimer(); } }
+      else if(e.key==='Enter'){ const ex=plan.exercises[getCurrentExerciseIndex()]; if(ex?.type==='reps') advance(); }
       else if(e.key==='ArrowRight'){ advance(); }
       else if(e.key==='ArrowLeft'){ back(); }
-      else if(e.key.toLowerCase()==='r'){ currentRound=1; index=0; side='Right'; render(); }
+      else if(e.key.toLowerCase()==='r'){ currentRound=1; index=0; side='Right'; shuffleOrders={}; render(); }
       else if(e.key==='Escape'){ planPanel.style.display='none'; openPlanBtn.textContent='Paste Plan'; }
     });
 
